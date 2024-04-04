@@ -7,20 +7,44 @@ const expect = require('expect.js');
 const fs = require('fs');
 const mysql = require('mysql');
 const path = require('path');
+const log = require('ssi-logger');
 
 const conf = JSON.parse(fs.readFileSync(path.join(__dirname, 'db.conf')).toString());
 
+before(function (done) {
+    log.open({
+        syslog: {
+            facility: "LOG_LOCAL5", 
+            level: "DEBUG",
+            enable: (process.env.DEBUG === 'DbTestUtil' || process.env.DEBUG === '*'),
+        },
+        console: {
+            facility: "LOG_LOCAL5", 
+            level: "DEBUG",
+            enable: (process.env.DEBUG === 'DbTestUtil' || process.env.DEBUG === '*'),
+        }
+    });
+    done();
+});
+
+after(function (done) {
+    log.close();
+    done();
+});
+
 describe('DbTestUtil', function () {
-    it('should be a constructor', function () {
-        expect(DbTestUtil).to.be.a('function');
+    describe('constructor(options)', function () {
+        it('should be a constructor', function () {
+            expect(DbTestUtil).to.be.a('function');
+        });
     });
 
     describe('createTestDb(connectionConfig, sqlFiles, callback)', function () {
-
+        this.timeout(15000);
         it('should callback with DBTESTUTIL_DATABASE_MISSING_SUFFIX if database does not end with the right prefix', function (done) {
 
             const dbTestUtil = new DbTestUtil({
-                databaseMustEndWith: '_test',
+                databaseMustEndWith: '_test'
             });
 
             async.each([

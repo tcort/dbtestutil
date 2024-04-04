@@ -4,7 +4,7 @@ const _ = require('lodash');
 const async = require('async');
 const child_process = require('child_process');
 const fs = require('fs');
-const moment = require('moment');
+const moment = require('moment-timezone');
 const mysql = require('mysql');
 const path = require('path');
 const uuid = require('uuid');
@@ -18,23 +18,8 @@ class DbTestUtil {
             databaseMustEndWith: '_test',
             hostBlacklist: [],
             charset: "utf8mb4",
-            collate: "utf8mb4_unicode_520_ci",
-            logger: {
-                transports: {
-                    syslog: {
-                        facility: "LOG_LOCAL5", 
-                        level: "DEBUG",
-                        enable: (process.env.DEBUG === 'DbTestUtil' || process.env.DEBUG === '*'),
-                    },
-                    console: {
-                        facility: "LOG_LOCAL5", 
-                        level: "DEBUG",
-                        enable: (process.env.DEBUG === 'DbTestUtil' || process.env.DEBUG === '*'),
-                    }
-                }
-            }
+            collate: "utf8mb4_unicode_520_ci"
         });
-        log.open(this.options.logger.transports);
     }
 
     createTestDb(connectionConfig, sqlFiles, callback) {
@@ -147,51 +132,16 @@ class DbTestUtil {
                             dbEventSetupError.inner = err;
                             return callback(dbEventSetupError);
                         }
-                        if (query.sql.startsWith('CREATE EVENT')) {
-                            log.debug('DBTESTUTIL db self destruct added', { 
-                                database: connectionConfig.database, 
-                                port: connectionConfig.port, 
-                                host: connectionConfig.host, 
-                                selfDestruct: connectionConfig.selfDestruct, 
-                                timeMinusSelfDestruct: timeMinusSelfDestruct + ' minutes'
-                            });
-                        }
                         callback();
                     });
                 }, (err) => {
                     conn.end();
-                    callback(err);
-                });
-            },
-
-            /*
-             * Set timezone -- do this *before* schema load & self destruct so that if there is a load issue, the database still gets cleaned up.
-             */
-            (callback) => {
-                if (!_.isString(connectionConfig.timezone)) { // skip
-                    return callback();
-                }
-
-                const conn = mysql.createConnection(connectionConfig);
-                conn.query("SET time_zone = ?;", [connectionConfig.timezone], (err) => {
-                    conn.end();
-                    if (err) {
-                        const dbEventSetupError = new Error('could not set timezone on database');
-                        dbEventSetupError.name = 'DBTESTUTIL_DB_EVENT';
-                        dbEventSetupError.database = connectionConfig.database;
-                        dbEventSetupError.inner = err;
-                        return callback(dbEventSetupError);
-                    }
-                    
-                    log.debug('DBTESTUTIL db timezone set', { 
+                    log.info('DBTESTUTIL db self destruct added', { 
                         database: connectionConfig.database, 
                         port: connectionConfig.port, 
                         host: connectionConfig.host, 
-                        timezone: connectionConfig.timezone
+                        selfDestruct: connectionConfig.selfDestruct
                     });
-                    callback();
-                }, (err) => {
-                    conn.end();
                     callback(err);
                 });
             },
@@ -214,6 +164,13 @@ class DbTestUtil {
                         args.push(connectionConfig.host);
                         args.push('--port');
                         args.push(connectionConfig.port);
+                    }
+                    
+                    if (connectionConfig.timezone_name) {
+                        const time_zone = moment.tz(connectionConfig.timezone_name).format('Z');
+                        args.push(`--init-command=SET time_zone='${time_zone}'`);
+                    } else if (connectionConfig.timezone){
+                        args.push(`--init-command=SET time_zone='${connectionConfig.timezone}'`);
                     }
 
                     if (connectionConfig.password) {
