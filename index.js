@@ -166,10 +166,8 @@ class DbTestUtil {
                         args.push(connectionConfig.port);
                     }
                     
-                    if (connectionConfig.timezone_name) {
-                        const time_zone = moment.tz(connectionConfig.timezone_name).format('Z');
-                        args.push(`--init-command=SET time_zone='${time_zone}'`);
-                    } else if (connectionConfig.timezone){
+                    // expects a timezone string like '-08:00' for EST
+                    if (connectionConfig.timezone){
                         args.push(`--init-command=SET time_zone='${connectionConfig.timezone}'`);
                     }
 
